@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# Copyright 2017 Michael R. Shannon <mrshannon.aerospace@gmail.com>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+function show_usage() {
+    echo "Usage: $0 <source file>"
+    echo ""
+    echo "  Source this command with a source file as the argument to"
+    echo "  find and include the code of that file."
+    echo ""
+    echo "  Example:"
+    echo "      source include <source file>"
+    echo ""
+    echo "    -h, --help    show this message"
+    echo ""
+    echo "Report bugs and contribute at https://github.com/mrshannon/msbl"
+}
+
+# Catch calling this function from the command line.
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+    show_usage
+    exit 1
+fi
+
+# Catch invalid arguments or help flags.
+if [ $# -ne 1 ] || [ "${1}" = "-h" ] || [ "${1}" = "--help" ]; then
+    show_usage
+    exit 1
+fi
+
+# Source the file.
+source_file=$(dirname -- "$(readlink -f -- "${0}")")/${1}
+if ! [ -f "${source_file}" ]; then
+    if ! source_file="$(which "${1}" 2>/dev/null)"; then
+        source_file=${1}
+    fi
+fi
+source "${source_file}"
