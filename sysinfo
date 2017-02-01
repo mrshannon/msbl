@@ -1,0 +1,179 @@
+#!/bin/bash
+
+# Copyright 2017 Michael R. Shannon <mrshannon.aerospace@gmail.com>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+function __show_usage() {
+    echo "Usage: ${0} <sysinfo function>"
+    echo ""
+    echo "    -h, --help    show this message"
+    echo ""
+    echo "Report bugs and contribute at https://github.com/mrshannon/msbl"
+}
+
+
+function __to_time_vector() {
+    local days
+    local hours
+    local minutes
+    local seconds
+    seconds="$(echo "$1" | cut -d"." -f1)"
+    days=$((seconds / 24 / 60 / 60))
+    seconds=$((seconds - (days * 24 * 60 * 60)))
+    hours=$((seconds / 60 / 60))
+    seconds=$((seconds - (hours * 60 * 60)))
+    minutes=$((seconds / 60))
+    seconds=$((seconds - (minutes * 60)))
+    echo "${days} ${hours} ${minutes} ${seconds}"
+}
+
+
+function sysinfo_load() {
+    cut -d" " -f1 </proc/load
+}
+
+
+function sysinfo_uptime() {
+    local result
+    result=$(cut -d" " -f1 </proc/uptime)
+    if [ "$1" = "-v" ]; then
+        result=$(__to_time_vector "${result}")
+    fi
+    echo "${result}"
+}
+
+
+# TODO: write a cpustat function similar to the netstat command.
+
+
+function sysinfo_cpuload() {
+    local sample1
+    local sample2
+    sample1=$(grep 'cpu' </proc/stat | awk -F" " '{print ($2+$4), ($2+$4+$5)}')
+    sleep 1.0
+    sample2=$(grep 'cpu' </proc/stat | awk -F" " '{print ($2+$4), ($2+$4+$5)}')
+    while read -r line1 && read -r line2 <&3; do
+        echo "${line1} ${line2}" | \
+            awk -F" " '{printf "%d ",(($3-$1)*100/($4-$2))}'
+    done <<<"${sample1}" 3<<<"${sample2}"
+    echo ""
+}
+
+
+function sysinfo_cpucount() {
+    grep -c 'processor' </proc/cpuinfo
+}
+
+
+function sysinfo_cpuname() {
+    grep 'model name' </proc/cpuinfo | sed -e 's/[^:]*:\s*//g' | head -n 1
+}
+
+
+function sysinfo_cpufreq() {
+    </proc/cpuinfo awk -F":" '/cpu MHz/ {total+=$2; count+=1}
+        END {printf "%0.2f\n",(total/count)}'
+}
+
+
+function sysinfo_memory() {
+    local total
+    local free
+    total=$(grep 'MemTotal' </proc/meminfo | tr -c -d "[:digit:]")
+    free=$(grep 'MemFree' </proc/meminfo | tr -c -d "[:digit:]")
+    if [ "$1" = "-p" ]; then
+        echo $(((total - free)*100 / total))
+    else
+        echo "$((total - free)) ${free} ${total}"
+    fi
+}
+
+
+function sysinfo_swap() {
+    local total
+    local free
+    total=$(grep 'SwapTotal' </proc/meminfo | tr -c -d "[:digit:]")
+    free=$(grep 'SwapFree' </proc/meminfo | tr -c -d "[:digit:]")
+    if [ "$1" = "-p" ]; then
+        echo $(((total - free)*100 / total))
+    else
+        echo "$((total - free)) ${free} ${total}"
+    fi
+}
+
+
+function sysinfo_netstat() {
+    # <dev> <ip> <recv rate> <recieved> <trans rate> <transmited>
+    # units are in bytes and bits/second
+    local address
+    local usage1
+    local usage2
+    address=$(ip -4 -o addr | awk -F" " '{print $2,$4}')
+    usage1=$(tail +3 </proc/net/dev | tr -d ":" | \
+        awk -F" " '{print $2,$10}')
+    sleep 1.0
+    usage2=$(tail +3 </proc/net/dev | tr -d ":" | \
+        awk -F" " '{print $2,$10}')
+    while read -r addr && read -r line1 <&3 && read -r line2 <&4; do
+        echo "${addr} ${line1} ${line2}" | \
+            awk -F" " '{printf "%s %s %d %d %d %d\n",
+                $1,$2,($5-$3)*8,$5,($6-$4)*8,$6}'
+    done <<<${address} 3<<<"${usage1}" 4<<<"${usage2}"
+}
+
+
+function sysinfo_connected() {
+    ping -c 1 "google.com" &>/dev/null
+    exit $?
+}
+
+
+function sysinfo_countusers() {
+    # <active users> <total users>
+    echo "$(who --count | tail -1 | grep -o '[0-9]') $(wc -l </etc/passwd)"
+}
+
+function sysinfo_activeusers() {
+    who --count | head -n -1 | tr "\n" " "
+    echo ""
+}
+
+
+# Source guard.
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+
+    # Catch invalid arguments or help flags.
+    if [ $# -lt 1 ] || [ "${1}" = "-h" ] || [ "${1}" = "--help" ]; then
+        __show_usage
+        exit 1
+    fi
+
+    case $1 in
+        load) sysinfo_load "${@:2}";;
+        uptime) sysinfo_uptime "${@:2}";;
+        cpuload) sysinfo_cpuload "${@:2}";;
+        cpucount) sysinfo_cpucount "${@:2}";;
+        cpuname) sysinfo_cpuname "${@:2}";;
+        cpufreq) sysinfo_cpufreq "${@:2}";;
+        memory) sysinfo_memory "${@:2}";;
+        swap) sysinfo_swap "${@:2}";;
+        netstat) sysinfo_netstat "${@:2}";;
+        connected) sysinfo_connected "${@:2}";;
+        countusers) sysinfo_countusers "${@:2}";;
+        avtiveusers) sysinfo_activeusers "${@:2}";;
+        __to_time_vector) __to_time_vector "${@:2}";;
+        *) >&2 echo "Uknown sysinfo function: ${1}"; __show_usage;;
+    esac
+fi
