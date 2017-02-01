@@ -14,8 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 function show_usage() {
-    echo "Usage: $0 <source file>"
+    echo "Usage: ${0} <source file>"
     echo ""
     echo "  Source this command with a source file as the argument to"
     echo "  find and include the code of that file."
@@ -27,6 +28,7 @@ function show_usage() {
     echo ""
     echo "Report bugs and contribute at https://github.com/mrshannon/msbl"
 }
+
 
 # Catch calling this function from the command line.
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
