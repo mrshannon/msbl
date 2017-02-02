@@ -15,16 +15,9 @@
 # limitations under the License.
 
 
-function __show_usage() {
-    echo "Usage: ${0} <sysinfo function>"
-    echo ""
-    echo "    -h, --help    show this message"
-    echo ""
-    echo "Report bugs and contribute at https://github.com/mrshannon/msbl"
-}
 
 
-function __to_time_vector() {
+function __sysinfo_to_time_vector() {
     local days
     local hours
     local minutes
@@ -40,25 +33,81 @@ function __to_time_vector() {
 }
 
 
-function sysinfo_load() {
-    cut -d" " -f1 </proc/load
+function __sysinfo_trim() {
+    sed -e 's/^\s*//g' | sed -e 's/\s*$//g'
 }
 
 
-function sysinfo_uptime() {
+function __sysinfo_system_load() {
+    cut -d" " -f1,2,3 </proc/loadavg
+}
+
+
+function __sysinfo_system_uptime() {
     local result
     result=$(cut -d" " -f1 </proc/uptime)
-    if [ "$1" = "-v" ]; then
-        result=$(__to_time_vector "${result}")
+    if [ "$1" = "-v" ] || [ "$1" = "--vector" ]; then
+        result=$(__sysinfo_to_time_vector "${result}")
     fi
     echo "${result}"
 }
 
 
-# TODO: write a cpustat function similar to the netstat command.
+function __sysinfo_system() {
+    # Catch invalid arguments or help flags.
+    if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]; then
+        __show_usage_system
+        exit 1
+    fi
+
+    if [ $# -eq 0 ]; then
+        __sysinfo_system_stat
+    else
+        case $1 in
+            stat) __sysinfo_system_stat "${@:2}";;
+            load) __sysinfo_system_load "${@:2}";;
+            uptime) __sysinfo_system_uptime "${@:2}";;
+            *) >&2 echo "Unknown command: ${1}"; __show_usage_system;;
+        esac
+    fi
+}
 
 
-function sysinfo_cpuload() {
+function __show_usage_system() {
+    echo "Usage: ${0} system <command>"
+    echo ""
+    echo "  -h, --help    show this message"
+    echo ""
+    echo "Objects:"
+    echo "  stat"
+    echo "  load"
+    echo "  uptime"
+    echo ""
+    echo "Report bugs and contribute at https://github.com/mrshannon/msbl"
+}
+
+
+function __sysinfo_cpu_stat() {
+    __sysinfo_cpu_name
+    local freq
+    local count
+    local name
+    freq="$(__sysinfo_cpu_freq --average) $(__sysinfo_cpu_freq)"
+    count=-1
+    while read -r line1 && read -r line2 <&3; do
+        if [ $count -lt 0 ]; then
+            name="cpu"
+        else
+            name="cpu${count}"
+        fi
+        echo "${name} ${line1} ${line2}"
+        count=$((count+1))
+    done < <(__sysinfo_cpu_usage | tr " " "\n") \
+        3< <(echo "$freq" | tr " " "\n")
+}
+
+
+function __sysinfo_cpu_usage() {
     local sample1
     local sample2
     sample1=$(grep 'cpu' </proc/stat | awk -F" " '{print ($2+$4), ($2+$4+$5)}')
@@ -67,54 +116,138 @@ function sysinfo_cpuload() {
     while read -r line1 && read -r line2 <&3; do
         echo "${line1} ${line2}" | \
             awk -F" " '{printf "%d ",(($3-$1)*100/($4-$2))}'
-    done <<<"${sample1}" 3<<<"${sample2}"
+    done <<<"${sample1}" 3<<<"${sample2}" | __sysinfo_trim
     echo ""
 }
 
 
-function sysinfo_cpucount() {
+function __sysinfo_cpu_freq() {
+    if [ "$1" = "-a" ] || [ "$1" = "--average" ]; then
+        </proc/cpuinfo awk -F":" '/cpu MHz/ {total+=$2; count+=1}
+            END {printf "%0.2f\n",(total/count)}'
+    else
+        </proc/cpuinfo awk -F":" '/cpu MHz/ {printf "%0.2f ",$2}';
+        echo ""
+    fi
+}
+
+
+function __sysinfo_cpu_cores() {
     grep -c 'processor' </proc/cpuinfo
 }
 
 
-function sysinfo_cpuname() {
+function __sysinfo_cpu_name() {
     grep 'model name' </proc/cpuinfo | sed -e 's/[^:]*:\s*//g' | head -n 1
 }
 
 
-function sysinfo_cpufreq() {
-    </proc/cpuinfo awk -F":" '/cpu MHz/ {total+=$2; count+=1}
-        END {printf "%0.2f\n",(total/count)}'
-}
+function __sysinfo_cpu() {
+    # Catch invalid arguments or help flags.
+    if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]; then
+        __show_usage_cpu
+        exit 1
+    fi
 
-
-function sysinfo_memory() {
-    local total
-    local free
-    total=$(grep 'MemTotal' </proc/meminfo | tr -c -d "[:digit:]")
-    free=$(grep 'MemFree' </proc/meminfo | tr -c -d "[:digit:]")
-    if [ "$1" = "-p" ]; then
-        echo $(((total - free)*100 / total))
+    if [ $# -eq 0 ]; then
+        __sysinfo_cpu_stat
     else
-        echo "$((total - free)) ${free} ${total}"
+        case $1 in
+            stat) __sysinfo_cpu_stat "${@:2}";;
+            usage) __sysinfo_cpu_usage "${@:2}";;
+            freq) __sysinfo_cpu_freq "${@:2}";;
+            cores) __sysinfo_cpu_cores "${@:2}";;
+            name) __sysinfo_cpu_name "${@:2}";;
+            *) >&2 echo "Unknown command: ${1}"; __show_usage_cpu;;
+        esac
     fi
 }
 
 
-function sysinfo_swap() {
-    local total
-    local free
-    total=$(grep 'SwapTotal' </proc/meminfo | tr -c -d "[:digit:]")
-    free=$(grep 'SwapFree' </proc/meminfo | tr -c -d "[:digit:]")
-    if [ "$1" = "-p" ]; then
-        echo $(((total - free)*100 / total))
+function __show_usage_cpu() {
+    echo "Usage: ${0} cpu <command>"
+    echo ""
+    echo "  -h, --help    show this message"
+    echo ""
+    echo "Objects:"
+    echo "  stat"
+    echo "  usage"
+    echo "  freq"
+    echo "  cores"
+    echo "  name"
+    echo ""
+    echo "Report bugs and contribute at https://github.com/mrshannon/msbl"
+}
+
+
+
+
+
+
+
+
+
+
+
+function __sysinfo_memory_stat() {
+    echo "ram $(__sysinfo_memory_ram --percent) $(__sysinfo_memory_ram)"
+    echo "swap $(__sysinfo_memory_swap --percent) $(__sysinfo_memory_swap)"
+}
+
+
+function __sysinfo_memory_ram() {
+    if [ "$1" = "-p" ] || [ "$1" = "--percent" ]; then
+        free | awk -F" " '/Mem/ {printf "%d\n",($3/$2)*100}'
     else
-        echo "$((total - free)) ${free} ${total}"
+        free | awk -F" " '/Mem/ {print $2,$3,$4}'
     fi
 }
 
 
-function sysinfo_netstat() {
+function __sysinfo_memory_swap() {
+    if [ "$1" = "-p" ] || [ "$1" = "--percent" ]; then
+        free | awk -F" " '/Swap/ {printf "%d\n",($3/$2)*100}'
+    else
+        free | awk -F" " '/Swap/ {print $2,$3,$4}'
+    fi
+}
+
+
+function __sysinfo_memory() {
+    # Catch invalid arguments or help flags.
+    if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]; then
+        __show_usage_memory
+        exit 1
+    fi
+
+    if [ $# -eq 0 ]; then
+        __sysinfo_memory_stat
+    else
+        case $1 in
+            stat) __sysinfo_memory_stat "${@:2}";;
+            ram) __sysinfo_memory_ram "${@:2}";;
+            swap) __sysinfo_memory_swap "${@:2}";;
+            *) >&2 echo "Unknown command: ${1}"; __show_usage_memory;;
+        esac
+    fi
+}
+
+
+function __show_usage_memory() {
+    echo "Usage: ${0} memory <command>"
+    echo ""
+    echo "  -h, --help    show this message"
+    echo ""
+    echo "Objects:"
+    echo "  stat"
+    echo "  ram"
+    echo "  swap"
+    echo ""
+    echo "Report bugs and contribute at https://github.com/mrshannon/msbl"
+}
+
+
+function __sysinfo_network_stat() {
     # <dev> <ip> <recv rate> <recieved> <trans rate> <transmited>
     # units are in bytes and bits/second
     local address
@@ -129,51 +262,202 @@ function sysinfo_netstat() {
     while read -r addr && read -r line1 <&3 && read -r line2 <&4; do
         echo "${addr} ${line1} ${line2}" | \
             awk -F" " '{printf "%s %s %d %d %d %d\n",
-                $1,$2,($5-$3)*8,$5,($6-$4)*8,$6}'
-    done <<<${address} 3<<<"${usage1}" 4<<<"${usage2}"
+                $1,$2,($5-$3)*8,$5/1024,($6-$4)*8,$6/1024}'
+    done <<<"${address}" 3<<<"${usage1}" 4<<<"${usage2}"
 }
 
 
-function sysinfo_connected() {
-    ping -c 1 "google.com" &>/dev/null
-    exit $?
+function __sysinfo_network_dev() {
+    tail -n -2 </proc/net/dev | cut -d: -f1 | __sysinfo_trim
 }
 
 
-function sysinfo_countusers() {
+function __sysinfo_network_ip() {
+    ip -o -4 addr | awk -F" " '{print $2,$4}'
+}
+
+
+function __sysinfo_network_rx() {
+    usage1=$(tail +3 </proc/net/dev | tr -d ":" | \
+        awk -F" " '{print $1,$2}')
+    sleep 1.0
+    usage2=$(tail +3 </proc/net/dev | tr -d ":" | \
+        awk -F" " '{print $1,$2}')
+    while read -r line1 && read -r line2 <&3; do
+        echo "${line1} ${line2}" | \
+            awk -F" " '{printf "%s %d %d\n",$1,($4-$2)*8,($4/1024)}'
+    done <<<"${usage1}" 3<<<"${usage2}"
+}
+
+
+function __sysinfo_network_tx() {
+    usage1=$(tail +3 </proc/net/dev | tr -d ":" | \
+        awk -F" " '{print $1,$10}')
+    sleep 1.0
+    usage2=$(tail +3 </proc/net/dev | tr -d ":" | \
+        awk -F" " '{print $1,$10}')
+    while read -r line1 && read -r line2 <&3; do
+        echo "${line1} ${line2}" | \
+            awk -F" " '{printf "%s %d %d\n",$1,($4-$2)*8,($4/1024)}'
+    done <<<"${usage1}" 3<<<"${usage2}"
+}
+
+
+function __sysinfo_network_up() {
+    if [ "${1}" = "-p" ] || [ "${1}" = "--print" ]; then
+        if ping -c 1 "google.com" &>/dev/null; then
+            echo "yes"
+        else
+            echo "no"
+        fi
+    else
+        ping -c 1 "google.com" &>/dev/null
+        exit $?
+    fi
+}
+
+
+function __sysinfo_network() {
+    # Catch invalid arguments or help flags.
+    if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]; then
+        __show_usage_network
+        exit 1
+    fi
+
+    if [ $# -eq 0 ]; then
+        __sysinfo_network_stat
+    else
+        case $1 in
+            stat) __sysinfo_network_stat "${@:2}";;
+            dev) __sysinfo_network_dev "${@:2}";;
+            ip) __sysinfo_network_ip "${@:2}";;
+            rx) __sysinfo_network_rx "${@:2}";;
+            tx) __sysinfo_network_tx "${@:2}";;
+            up) __sysinfo_network_up "${@:2}";;
+            *) >&2 echo "Unknown command: ${1}"; __sysinfo_show_usage_network;;
+        esac
+    fi
+}
+
+
+function __show_usage_network() {
+    echo "Usage: ${0} network <command>"
+    echo ""
+    echo "  -h, --help    show this message"
+    echo ""
+    echo "Objects:"
+    echo "  dev"
+    echo "  ip"
+    echo "  tx"
+    echo "  rx"
+    echo ""
+    echo "Report bugs and contribute at https://github.com/mrshannon/msbl"
+}
+
+
+function __sysinfo_users_stat() {
+    echo "$(__sysinfo_users_count) $(__sysinfo_users_active | paste -sd " ")"
+}
+
+
+function __sysinfo_users_count() {
     # <active users> <total users>
     echo "$(who --count | tail -1 | grep -o '[0-9]') $(wc -l </etc/passwd)"
 }
 
-function sysinfo_activeusers() {
+
+function __sysinfo_users_active() {
     who --count | head -n -1 | tr "\n" " "
     echo ""
 }
 
 
-# Source guard.
-if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+function __sysinfo_users() {
+    # Catch invalid arguments or help flags.
+    if [ "${1}" = "-h" ] || [ "${1}" = "--help" ]; then
+        __sysinfo_show_usage_users
+        exit 1
+    fi
 
+    if [ $# -eq 0 ]; then
+        __sysinfo_users_stat
+    else
+        case $1 in
+            stat) __sysinfo_users_stat "${@:2}";;
+            active) __sysinfo_users_active "${@:2}";;
+            count) __sysinfo_users_count "${@:2}";;
+            *) >&2 echo "Unknown command: ${1}"; __sysinfo_show_usage_users;;
+        esac
+    fi
+}
+
+
+function __sysinfo_show_usage_users() {
+    echo "Usage: ${0} users <command>"
+    echo ""
+    echo "  -h, --help    show this message"
+    echo ""
+    echo "Commands:"
+    echo "  stat"
+    echo "  active"
+    echo "  count"
+    echo ""
+    echo "Report bugs and contribute at https://github.com/mrshannon/msbl"
+}
+
+
+function __sysinfo_show_usage() {
+    echo "Usage: ${0} <object>"
+    echo ""
+    echo "  -h, --help    show this message"
+    echo ""
+    echo "Objects:"
+    echo "  system"
+    echo "  cpu"
+    echo "  memory"
+    echo "  network"
+    echo "  users"
+    echo ""
+    echo "Report bugs and contribute at https://github.com/mrshannon/msbl"
+}
+
+
+function __sysinfo() {
     # Catch invalid arguments or help flags.
     if [ $# -lt 1 ] || [ "${1}" = "-h" ] || [ "${1}" = "--help" ]; then
-        __show_usage
+        __sysinfo_show_usage
         exit 1
     fi
 
     case $1 in
+        system) __sysinfo_system "${@:2}";;
+        cpu) __sysinfo_cpu "${@:2}";;
+        memory) __sysinfo_memory "${@:2}";;
+        network) __sysinfo_network "${@:2}";;
+        users) __sysinfo_users "${@:2}";;
         load) sysinfo_load "${@:2}";;
         uptime) sysinfo_uptime "${@:2}";;
         cpuload) sysinfo_cpuload "${@:2}";;
         cpucount) sysinfo_cpucount "${@:2}";;
         cpuname) sysinfo_cpuname "${@:2}";;
         cpufreq) sysinfo_cpufreq "${@:2}";;
-        memory) sysinfo_memory "${@:2}";;
         swap) sysinfo_swap "${@:2}";;
         netstat) sysinfo_netstat "${@:2}";;
         connected) sysinfo_connected "${@:2}";;
         countusers) sysinfo_countusers "${@:2}";;
         avtiveusers) sysinfo_activeusers "${@:2}";;
         __to_time_vector) __to_time_vector "${@:2}";;
-        *) >&2 echo "Uknown sysinfo function: ${1}"; __show_usage;;
+        *) >&2 echo "Unknown object: ${1}"; __sysinfo_show_usage;;
     esac
+}
+
+
+# Call directly if run as script
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+    __sysinfo "$@"
+# Export function if sourced.
+else
+    function sysinfo() {
+        __sysinfo "$@"
+    }
 fi
