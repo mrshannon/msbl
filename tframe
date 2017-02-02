@@ -1,0 +1,259 @@
+#!/bin/bash
+
+
+# Copyright 2017 Michael R. Shannon <mrshannon.aerospace@gmail.com>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+# BASH library that provides a basic framing/windowing ability.
+#
+# This is essentially a poor mans ncurses that works in BASH.
+
+
+# Try to use Unicode, but fallback on ASCI if not supported.
+if locale charmap | grep "UTF-8" >/dev/null; then
+    # Horizontal
+    TFRAME_CHAR_LV1="│"
+    TFRAME_CHAR_LV2="║"
+    # Vertical
+    TFRAME_CHAR_LH1="─"
+    TFRAME_CHAR_LH2="═"
+    # Upper left corner
+    TFRAME_CHAR_CUL11="┌"
+    TFRAME_CHAR_CUL22="╔"
+    TFRAME_CHAR_CUL12="╓"
+    TFRAME_CHAR_CUL21="╒"
+    # Upper right corner
+    TFRAME_CHAR_CUR11="┐"
+    TFRAME_CHAR_CUR22="╗"
+    TFRAME_CHAR_CUR12="╖"
+    TFRAME_CHAR_CUR21="╕"
+    # Lower left corner
+    TFRAME_CHAR_CLL11="└"
+    TFRAME_CHAR_CLL22="╚"
+    TFRAME_CHAR_CLL12="╙"
+    TFRAME_CHAR_CLL21="╘"
+    # Lower right corner
+    TFRAME_CHAR_CLR11="┘"
+    TFRAME_CHAR_CLR22="╝"
+    TFRAME_CHAR_CLR12="╜"
+    TFRAME_CHAR_CLR21="╛"
+    # Left pointing tee
+    TFRAME_CHAR_TL11="┤"
+    TFRAME_CHAR_TL22="╣"
+    TFRAME_CHAR_TL12="╢"
+    TFRAME_CHAR_TL21="╡"
+    # Right pointing tee
+    TFRAME_CHAR_TR11="├"
+    TFRAME_CHAR_TR22="╠"
+    TFRAME_CHAR_TR12="╟"
+    TFRAME_CHAR_TR21="╞"
+    # Up pointing tee
+    TFRAME_CHAR_TU11="┴"
+    TFRAME_CHAR_TU22="╩"
+    TFRAME_CHAR_TU12="╨"
+    TFRAME_CHAR_TU21="╧"
+    # Down pointing tee
+    TFRAME_CHAR_TD11="┬"
+    TFRAME_CHAR_TD22="╦"
+    TFRAME_CHAR_TD12="╥"
+    TFRAME_CHAR_TD21="╤"
+    # Crosses
+    TFRAME_CHAR_X11="┼"
+    TFRAME_CHAR_X22="╬"
+    TFRAME_CHAR_X12="╫"
+    TFRAME_CHAR_X21="╪"
+else
+    # Horizontal
+    TFRAME_CHAR_LV1="|"
+    TFRAME_CHAR_LV2="#"
+    # Vertical
+    TFRAME_CHAR_LH1="-"
+    TFRAME_CHAR_LH2="="
+    # Upper left corner
+    TFRAME_CHAR_CUL11="+"
+    TFRAME_CHAR_CUL22="@"
+    TFRAME_CHAR_CUL12="+"
+    TFRAME_CHAR_CUL21="+"
+    # Upper right corner
+    TFRAME_CHAR_CUR11="+"
+    TFRAME_CHAR_CUR22="@"
+    TFRAME_CHAR_CUR12="+"
+    TFRAME_CHAR_CUR21="+"
+    # Lower left corner
+    TFRAME_CHAR_CLL11="+"
+    TFRAME_CHAR_CLL22="@"
+    TFRAME_CHAR_CLL12="+"
+    TFRAME_CHAR_CLL21="+"
+    # Lower right corner
+    TFRAME_CHAR_CLR11="+"
+    TFRAME_CHAR_CLR22="@"
+    TFRAME_CHAR_CLR12="+"
+    TFRAME_CHAR_CLR21="+"
+    # Left pointing tee
+    TFRAME_CHAR_TL11="+"
+    TFRAME_CHAR_TL22="@"
+    TFRAME_CHAR_TL12="+"
+    TFRAME_CHAR_TL21="+"
+    # Right pointing tee
+    TFRAME_CHAR_TR11="+"
+    TFRAME_CHAR_TR22="@"
+    TFRAME_CHAR_TR12="+"
+    TFRAME_CHAR_TR21="+"
+    # Up pointing tee
+    TFRAME_CHAR_TU11="+"
+    TFRAME_CHAR_TU22="@"
+    TFRAME_CHAR_TU12="+"
+    TFRAME_CHAR_TU21="+"
+    # Down pointing tee
+    TFRAME_CHAR_TD11="+"
+    TFRAME_CHAR_TD22="@"
+    TFRAME_CHAR_TD12="+"
+    TFRAME_CHAR_TD21="+"
+    # Crosses
+    TFRAME_CHAR_X11="+"
+    TFRAME_CHAR_X22="@"
+    TFRAME_CHAR_X12="+"
+    TFRAME_CHAR_X21="+"
+fi
+
+
+function __tframe_repeat() {
+    local i
+    for ((i=1; i<="$1"; ++i)); do
+        echo -ne "$2"
+    done
+}
+
+
+function __tframe_length() {
+    echo -en "$1" | sed -re 's/\x1B\[[^m]*m//g' | wc -c
+}
+
+
+function __tframe_width() {
+    tput cols
+}
+
+
+function __tframe_height() {
+    tput lines
+}
+
+
+function __tframe_top() {
+    local width
+    width=$(__tframe_width)
+    echo -n "${TFRAME_CHAR_CUL22}"
+    __tframe_repeat "$((width - 2))" "${TFRAME_CHAR_LH2}"
+    echo -n "${TFRAME_CHAR_CUR22}"
+    echo ""
+}
+
+
+function __tframe_separator() {
+    local width
+    width=$(__tframe_width)
+    if [ "$1" -eq 1 ]; then
+        echo -n "${TFRAME_CHAR_TR12}"
+        __tframe_repeat "$((width - 2))" "${TFRAME_CHAR_LH1}"
+        echo -n "${TFRAME_CHAR_TL12}"
+    elif [ "$1" -eq 2 ]; then
+        echo -n "${TFRAME_CHAR_TR22}"
+        __tframe_repeat "$((width - 2))" "${TFRAME_CHAR_LH2}"
+        echo -n "${TFRAME_CHAR_TL22}"
+    else
+        echo "Unkown level: ${1}"
+        exit 1
+    fi
+    echo ""
+}
+
+
+function __tframe_bottom() {
+    local width
+    width=$(__tframe_width)
+    echo -n "${TFRAME_CHAR_CLL22}"
+    __tframe_repeat "$((width - 2))" "${TFRAME_CHAR_LH2}"
+    echo -n "${TFRAME_CHAR_CLR22}"
+    echo ""
+}
+
+
+function __tframe_print() {
+    local width
+    local border
+    local border_width
+    local text
+    local text_width
+    local padding
+    local padding_width
+    width=$(__tframe_width)
+    border_width=${1}
+    border=$(__tframe_repeat "${border_width}" " ")
+    text=${2}
+    text_width=$(__tframe_length "${text}")
+    padding_width=$((width - text_width - 2*border_width - 2))
+    padding=$(__tframe_repeat "${padding_width}" " ")
+    echo -n "${TFRAME_CHAR_LV2}"
+    echo -n "${border}"
+    echo -ne "${text}"
+    echo -n "${padding}"
+    echo -n "${border}"
+    echo -n "${TFRAME_CHAR_LV2}"
+    echo ""
+}
+
+
+function __tframe_show_usage() {
+    echo "Usage: ${0} <command>"
+    echo ""
+    echo "  -h, --help    show this message"
+    echo ""
+    echo "Report bugs and contribute at https://github.com/mrshannon/msbl"
+}
+
+
+function __tframe() {
+    # Catch invalid arguments or help flags.
+    if [ $# -lt 1 ] || [ "${1}" = "-h" ] || [ "${1}" = "--help" ]; then
+        __tframe_show_usage
+        exit 1
+    fi
+
+    case $1 in
+        top) __tframe_top  "${@:2}";;
+        bottom) __tframe_bottom "${@:2}";;
+        separator) __tframe_separator "${@:2}";;
+        print) __tframe_print  "${@:2}";;
+        width) __tframe_width "${@:2}";;
+        height) __tframe_height "${@:2}";;
+        repeat) __tframe_repeat "${@:2}";;
+        length) __tframe_length "${@:2}";;
+        *) >&2 echo "Unknown object: ${1}"; __tframe_show_usage;;
+    esac
+}
+
+
+# Call directly if run as script
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+    __tframe "$@"
+# Export function if sourced.
+else
+    function tframe() {
+        __tframe "$@"
+    }
+fi
+
+
