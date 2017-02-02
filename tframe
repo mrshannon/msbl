@@ -138,7 +138,9 @@ function __tframe_repeat() {
 
 
 function __tframe_length() {
-    echo -en "$1" | sed -re 's/\x1B\[[^m]*m//g' | wc -c
+    local cleaned
+    cleaned=$(echo -en "$1" | sed -re 's/\x1B\[[^m]*m//g')
+    echo "${#cleaned}"
 }
 
 
@@ -216,6 +218,21 @@ function __tframe_print() {
 }
 
 
+
+function __tframe_progress() {
+    local width
+    local percent
+    local bars
+    width=${1}
+    percent=${2}
+    bars=$((width * percent / 100))
+    # echo -n "["
+    __tframe_repeat "${bars}" "■"
+    __tframe_repeat "$((width - bars))" " "
+    # echo -n "]"
+}
+
+
 function __tframe_show_usage() {
     echo "Usage: ${0} <command>"
     echo ""
@@ -241,6 +258,7 @@ function __tframe() {
         height) __tframe_height "${@:2}";;
         repeat) __tframe_repeat "${@:2}";;
         length) __tframe_length "${@:2}";;
+        progress) __tframe_progress "${@:2}";;
         *) >&2 echo "Unknown object: ${1}"; __tframe_show_usage;;
     esac
 }

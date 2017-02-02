@@ -61,10 +61,11 @@ function __sysinfo_system() {
     fi
 
     if [ $# -eq 0 ]; then
-        __sysinfo_system_stat
+        # __sysinfo_system_stat
+        echo "TODO"
     else
         case $1 in
-            stat) __sysinfo_system_stat "${@:2}";;
+            # stat) __sysinfo_system_stat "${@:2}";;
             load) __sysinfo_system_load "${@:2}";;
             uptime) __sysinfo_system_uptime "${@:2}";;
             *) >&2 echo "Unknown command: ${1}"; __show_usage_system;;

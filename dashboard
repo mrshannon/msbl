@@ -1,0 +1,128 @@
+#!/bin/bash
+
+
+source include ansi_codes
+source include sysinfo
+source include tframe
+
+
+function color_code() {
+    if [ "${1}" -lt 60 ]; then
+        _color=${_GREEN}
+        color_=${GREEN_}
+    elif [ "${1}" -lt 80 ]; then
+        _color=${_YELLOW}
+        color_=${YELLOW_}
+    else
+        _color=${_RED}
+        color_=${RED_}
+    fi
+    echo "${_color}${2}${color_}"
+}
+
+
+
+## Setup
+echo -e "${_BG_BLUE}"
+width=$(tframe width)
+tframe top
+
+## System
+tframe print 1 "${_BOLD}${_ITALICS}${_YELLOW}\
+System${YELLOW_}${ITALICS_}${BOLD_}"
+tmp=$(sysinfo system uptime -v)
+tframe print 1 "  ${_BOLD}Uptime:${BOLD_} \
+$(cut -d" " -f1 <<<"$tmp") days, \
+$(cut -d" " -f2 <<<"$tmp") hours, \
+$(cut -d" " -f3 <<<"$tmp") minutes"
+tmp=$(sysinfo system load)
+tframe print 1 "  ${_BOLD}Average Load:${BOLD_} \
+$(cut -d" " -f1 <<<"$tmp") ${_ITALICS}(1 min)${ITALICS_}, \
+$(cut -d" " -f2 <<<"$tmp") ${_ITALICS}(5 min)${ITALICS_}, \
+$(cut -d" " -f3 <<<"$tmp") ${_ITALICS}(15 min)${ITALICS_}"
+tframe separator 1
+
+## Memory
+tframe print 1 "${_BOLD}${_ITALICS}${_YELLOW}\
+Memory${YELLOW_}${ITALICS_}${BOLD_}"
+
+## RAM
+percent=$(sysinfo memory ram -p)
+progress=$(tframe progress $((width - 20)) "${percent}")
+progress=$(color_code "${percent}" "${progress}")
+tframe print 1 "  ${_BOLD}RAM:${BOLD_}  $(printf "%3d" "${percent}")% \
+ ${_BOLD}[${BOLD_}${progress}${_BOLD}]${BOLD_}"
+tmp=$(bc <<<"scale=3; $(sysinfo memory ram | cut -d" " -f2)/1024/1024")
+tframe print 1 "    ${_ITALICS}used${ITALICS_}:  $(printf "%5.2f" "${tmp}")G"
+tmp=$(bc <<<"scale=3; $(sysinfo memory ram | cut -d" " -f3)/1024/1024")
+tframe print 1 "    ${_ITALICS}free${ITALICS_}:  $(printf "%5.2f" "${tmp}")G"
+tmp=$(bc <<<"scale=3; $(sysinfo memory ram | cut -d" " -f1)/1024/1024")
+tframe print 1 "    ${_ITALICS}total${ITALICS_}: $(printf "%5.2f" "${tmp}")G"
+
+## Swap
+percent=$(sysinfo memory swap -p)
+progress=$(tframe progress $((width - 20)) "${percent}")
+progress=$(color_code "${percent}" "${progress}")
+tframe print 1 "  ${_BOLD}Swap:${BOLD_} $(printf "%3d" "${percent}")% \
+ ${_BOLD}[${BOLD_}${progress}${_BOLD}]${BOLD_}"
+tmp=$(bc <<<"scale=3; $(sysinfo memory swap | cut -d" " -f2)/1024/1024")
+tframe print 1 "    ${_ITALICS}used${ITALICS_}:  $(printf "%5.2f" "${tmp}")G"
+tmp=$(bc <<<"scale=3; $(sysinfo memory swap | cut -d" " -f3)/1024/1024")
+tframe print 1 "    ${_ITALICS}free${ITALICS_}:  $(printf "%5.2f" "${tmp}")G"
+tmp=$(bc <<<"scale=3; $(sysinfo memory swap | cut -d" " -f1)/1024/1024")
+tframe print 1 "    ${_ITALICS}total${ITALICS_}: $(printf "%5.2f" "${tmp}")G"
+
+tframe separator 1
+
+## CPU
+tframe print 1 "${_BOLD}${_ITALICS}${_YELLOW}\
+Processor${YELLOW_}${ITALICS_}${BOLD_}"
+tframe print 1 "  ${_BOLD}Name:${BOLD_} $(sysinfo cpu name)"
+tframe print 1 "  ${_BOLD}Cores:${BOLD_} $(sysinfo cpu cores)"
+tframe print 1 "  ${_BOLD}Frequency:${BOLD_} $(sysinfo cpu freq --average) MHz"
+count=-1
+for percent in $(./sysinfo cpu usage); do
+    if [ "${count}" -lt 0 ]; then
+        progress=$(tframe progress $((width - 18)) "${percent}")
+        progress=$(color_code "${percent}" "${progress}")
+        tframe print 1 "  ${_BOLD}CPU:${BOLD_} \
+$(printf "%3d" "${percent}")% \
+${_BOLD}[${BOLD_}${progress}${_BOLD}]${BOLD_}"
+    else
+        progress=$(tframe progress $((width - 24)) "${percent}")
+        progress=$(color_code "${percent}" "${progress}")
+        tframe print 1 "    ${_ITALICS}core $(printf "%2d" "${count}"):${ITALICS_} \
+$(printf "%3d" "${percent}")% \
+${_BOLD}[${BOLD_}${progress}${_BOLD}]${BOLD_}"
+    fi
+    count=$((count + 1))
+done
+
+tframe separator 1
+
+
+# DISK TODO
+
+
+## Network
+tframe print 1 "${_BOLD}${_ITALICS}${_YELLOW}\
+Network${YELLOW_}${ITALICS_}${BOLD_}"
+
+
+tframe separator 1
+
+
+## Users
+tframe print 1 "${_BOLD}${_ITALICS}${_YELLOW}\
+Users${YELLOW_}${ITALICS_}${BOLD_}"
+tframe print 1 "  ${_BOLD}Active:${BOLD_} \
+$(sysinfo users count | cut -d" " -f1)"
+tframe print 1 "  ${_BOLD}Total:${BOLD_} \
+$(sysinfo users count | cut -d" " -f2)"
+tframe print 1 "  ${_BOLD}Most Common Shell:${BOLD_} \
+$(cut -d: -f7 </etc/passwd | sort | uniq -c | sort -nr | head -n 1 | awk -F" " '{print $2}')"
+
+
+
+tframe bottom
+echo -e "${ANSI_RESET}"
