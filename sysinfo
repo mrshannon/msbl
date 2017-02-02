@@ -435,18 +435,6 @@ function __sysinfo() {
         memory) __sysinfo_memory "${@:2}";;
         network) __sysinfo_network "${@:2}";;
         users) __sysinfo_users "${@:2}";;
-        load) sysinfo_load "${@:2}";;
-        uptime) sysinfo_uptime "${@:2}";;
-        cpuload) sysinfo_cpuload "${@:2}";;
-        cpucount) sysinfo_cpucount "${@:2}";;
-        cpuname) sysinfo_cpuname "${@:2}";;
-        cpufreq) sysinfo_cpufreq "${@:2}";;
-        swap) sysinfo_swap "${@:2}";;
-        netstat) sysinfo_netstat "${@:2}";;
-        connected) sysinfo_connected "${@:2}";;
-        countusers) sysinfo_countusers "${@:2}";;
-        avtiveusers) sysinfo_activeusers "${@:2}";;
-        __to_time_vector) __to_time_vector "${@:2}";;
         *) >&2 echo "Unknown object: ${1}"; __sysinfo_show_usage;;
     esac
 }
