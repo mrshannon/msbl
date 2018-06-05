@@ -1,0 +1,18 @@
+#!/bin/bash
+
+
+if [[ "$1" == '-x' ]]; then
+    USERNAME="$2"
+else
+    USERNAME="$1"
+fi
+
+SHA=$(echo -n "$USERNAME" | sha1sum | grep -oP '^[^\W]*')
+SHA=${SHA: -7}
+SHA=$((0x10000 + $(printf "%u" "0x$SHA")))
+
+if [[ "$1" == '-x' ]]; then
+    printf "%x\n" $SHA
+else
+    echo "$SHA"
+fi
